@@ -70,8 +70,8 @@ stretch_data<-function(data,desired_length=4000){
   for(i in 1:length(data[,1])){
     x=floor(data[i,1])
     y=data[i,2]
-    if(x>4000){
-      x<-4000
+    if(x>4000 | x<0){
+      next
     }
     #TODO sometimes the conditions has lenght >1
     if(stretched[x]==0){
@@ -102,28 +102,57 @@ show_stretched_vs_original<-function(xx){
               mode="lines",type="scatter",name="stretched")
   return(p)
 }
-
-load_learning_data_frame<-function(){
+load_learning_data_frame<-function(skipGewebe,skipSpezies){
+  library(DataCombine)
   #TODO export learnin data frame
   #TODO dont process if exported learnign data frame file exists
-  learning_data_frame<-list()
+  learning_data_frame<-data.frame()
   for(i in 1:measurements_quantity){
-    data<-measurements[[i]]$data
-    learning_data_frame[[i]]<-c(stretch_data(data))
+    m<-measurements[[i]]
+    data<-m$data
+    #skipping files
+    if(measurements[[i]]$Spezies %in% skipSpezies | measurements[[i]]$Gewebe %in% skipGewebe){
+      next
+    }
+    #adding first row to dataframe
+    firstRow<-list()
+    if(length(learning_data_frame)==0){
+      
+      firstRow<-append(firstRow,m$file)
+      firstRow<-append(firstRow,m$Spezies)
+      firstRow<-append(firstRow,m$Gewebe)
+      firstRow<-append(firstRow,m$Laser)
+      firstRow<-append(firstRow,m$Fall)
+      
+      addingStretchedDataToFirstRow<-stretch_data(data)
+      for(i in 1:4000){
+        firstRow<-append(firstRow,addingStretchedDataToFirstRow[i])
+      }
+      names(firstRow)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
+      learning_data_frame<-data.frame(firstRow)
+    }
+    else{
+      learning_data_frame<-InsertRow(data=learning_data_frame,RowNum=1,NewRow = c(m$file,m$Spezies,m$Gewebe,m$Laser,m$Fall,stretch_data(data)))
+    }
+    print(paste("creating learning data frame, current size: ",nrow(learning_data_frame)))
   }
-  
-  names(learning_data_frame)<-1:202
-  learning_data_frame<-data.frame(learning_data_frame)
   return(learning_data_frame)
 }
-old_learning_data_frame<-load_learning_data_frame()
-
-#write.table(learning_data_frame,"learning_data_frame.txt",sep="\t")
+learning_data_frame<-load_learning_data_frame(skipSpezies=c(2),skipGewebe = c(4,5,7,8,10))
 
 #show_stretched_vs_original(120)
-#show_spectrum(3)
+
+#show_spectrum(10)
+
 #show_spectrum_groups(Laser=1,Spezies=1,Gewebe=2)
+
+#learning data frame rows is correct
+#plot(1:3995,learning_data_frame[5,][6:4000])
+
+pca<-prcomp(learning_data_frame[6:4005])
+
+
+
 library(ggfortify)
-pca<-prcomp(old_learning_data_frame)
-biplot(pca)
-autoplot(pca,loadings=T)
+autoplot(pca,data=learning_data_frame, loadings=T)
+
