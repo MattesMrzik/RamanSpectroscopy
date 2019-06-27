@@ -73,18 +73,28 @@ stretch_data<-function(data,desired_length=4000){
     if(x>4000 | x<0){
       next
     }
-    #TODO sometimes the conditions has lenght >1
     if(stretched[x]==0){
       stretched[x]<-y
     }
   }
-  
   #fill gaps in y data
   last_y_value<-0
+  first_non_zero_value<-0
+  for (i in 1:4000){
+    if(stretched[i]!=0){
+      first_non_zero_value<-stretched[i]
+      break
+    }
+  }
   for(i in 1:4000){
     
     if(stretched[i]==0){
-      stretched[i]=last_y_value
+      if(last_y_value==0){
+        stretched[i]<-first_non_zero_value
+      }
+      else{
+        stretched[i]=last_y_value
+      }
     }
     else{
       last_y_value=stretched[i]
@@ -102,45 +112,46 @@ show_stretched_vs_original<-function(xx){
               mode="lines",type="scatter",name="stretched")
   return(p)
 }
-load_learning_data_frame<-function(skipGewebe,skipSpezies){
-  library(DataCombine)
-  #TODO export learnin data frame
-  #TODO dont process if exported learnign data frame file exists
+
+load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
   learning_data_frame<-data.frame()
+  gewebe<-list("Muskel","Sehne","Haut","Gehirn","Niere","Meniskus","knorpel","Faszie","Nerv","Gefäß")
   for(i in 1:measurements_quantity){
     m<-measurements[[i]]
     data<-m$data
     #skipping files
-    if(measurements[[i]]$Spezies %in% skipSpezies | measurements[[i]]$Gewebe %in% skipGewebe){
+    if(measurements[[i]]$Spezies %in% skipSpezies | measurements[[i]]$Gewebe %in% skipGewebe | measurements[[i]]$file %in% skipFile){
       next
     }
     #adding first row to dataframe
     firstRow<-list()
     if(length(learning_data_frame)==0){
-      
       firstRow<-append(firstRow,m$file)
       firstRow<-append(firstRow,m$Spezies)
-      firstRow<-append(firstRow,m$Gewebe)
+      firstRow<-append(firstRow,gewebe[m$Gewebe])
       firstRow<-append(firstRow,m$Laser)
       firstRow<-append(firstRow,m$Fall)
-      
       addingStretchedDataToFirstRow<-stretch_data(data)
       for(i in 1:4000){
         firstRow<-append(firstRow,addingStretchedDataToFirstRow[i])
       }
-      names(firstRow)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
       learning_data_frame<-data.frame(firstRow)
+      names(learning_data_frame)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
     }
     else{
-      learning_data_frame<-InsertRow(data=learning_data_frame,RowNum=1,NewRow = c(m$file,m$Spezies,m$Gewebe,m$Laser,m$Fall,stretch_data(data)))
+      newRow=data.frame(c(m$file,m$Spezies,gewebe[m$Gewebe],m$Laser,m$Fall,stretch_data(data)))
+      names(newRow)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
+      learning_data_frame<-rbind(learning_data_frame,newRow)
     }
     print(paste("creating learning data frame, current size: ",nrow(learning_data_frame)))
   }
   return(learning_data_frame)
 }
-learning_data_frame<-load_learning_data_frame(skipSpezies=c(2),skipGewebe = c(4,5,7,8,10))
 
-#show_stretched_vs_original(120)
+learning_data_frame<-load_learning_data_frame(skipSpezies=c(2),skipGewebe = c(4,5,7,8,10),skipFile=c(1))
+View(learning_data_frame)
+
+#show_stretched_vs_original(64)
 
 #show_spectrum(10)
 
@@ -149,10 +160,10 @@ learning_data_frame<-load_learning_data_frame(skipSpezies=c(2),skipGewebe = c(4,
 #learning data frame rows is correct
 #plot(1:3995,learning_data_frame[5,][6:4000])
 
-pca<-prcomp(learning_data_frame[6:4005])
-
-
+pca<-prcomp(learning_data_frame[2:172,200:3800])
 
 library(ggfortify)
-autoplot(pca,data=learning_data_frame, loadings=T)
 
+autoplot(pca,loadings=F,data=learning_data_frame[2:172,],colour="Gewebe",label=T,loadings.label = F)
+plot(pca)
+summary(pca)
