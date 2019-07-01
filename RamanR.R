@@ -1,15 +1,15 @@
 setwd(
   "C:\\Users\\mBrain\\luckyCloud\\Seafile\\Meine_Bibliothek\\Uni\\Studentische_Hilfskraft_KI_Medizin\\Raman"
 )
-library(manipulate)  
 library(plotly)
+library(ggfortify)
 
 Legende <- read.delim("Legende_neu.txt", sep = c("\t", "\n"))
-#View(Legende)
+
+
+#reading data
 measurements_quantity<-202
-
 measurements <- list(rep(0, measurements_quantity))
-
 for (file in list.files()) {
   if (suppressWarnings(is.na(as.numeric(substring(file, 1, 1))))) {
     next
@@ -25,7 +25,6 @@ for (file in list.files()) {
   xdata<-fileData[,1]
   ydata<-fileData[,2]
   data<-data.frame(xdata,ydata)
-  
   
   measurements[[index]] <- list("data"=data,
                                 "file"=index,
@@ -45,6 +44,7 @@ show_spectrum<-function(x){
   return(p)
 }
 
+#show all spectrums of a certain group
 show_spectrum_groups<-function(Laser,Spezies,Gewebe){
   allSpectra<-list()
   count<-1
@@ -63,7 +63,7 @@ show_spectrum_groups<-function(Laser,Spezies,Gewebe){
   subplot(allSpectra,nrows = rows)
 }
 
-
+#stretching data, so that is contains 4000 points
 #data is x and y of measurement
 stretch_data<-function(data,desired_length=4000){
   stretched<-rep(0,desired_length)
@@ -103,7 +103,8 @@ stretch_data<-function(data,desired_length=4000){
   #plot(1:4000,stretched)
   return(stretched)
 }
-#strech the data so that it has a lenght of 4000
+
+#shows the stretched data vs original
 show_stretched_vs_original<-function(xx){
   dat<-measurements[[xx]]$data
   stretch<-data.frame("xdat"=1:4000,"ydat"=stretch_data(dat))
@@ -113,6 +114,7 @@ show_stretched_vs_original<-function(xx){
   return(p)
 }
 
+#creates a dataframe with all relevant information
 load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
   learning_data_frame<-data.frame()
   gewebe<-list("Muskel","Sehne","Haut","Gehirn","Niere","Meniskus","knorpel","Faszie","Nerv","Gefäß")
@@ -138,6 +140,7 @@ load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
       learning_data_frame<-data.frame(firstRow)
       names(learning_data_frame)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
     }
+    #adding every row but the first
     else{
       newRow=data.frame(c(m$file,m$Spezies,gewebe[m$Gewebe],m$Laser,m$Fall,stretch_data(data)))
       names(newRow)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
@@ -148,7 +151,7 @@ load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
   return(learning_data_frame)
 }
 
-learning_data_frame<-load_learning_data_frame(skipSpezies=c(2),skipGewebe = c(4,5,7,8,10),skipFile=c(1))
+learning_data_frame<-load_learning_data_frame(skipSpezies=c(2),skipGewebe = c(4,5,7,8,10),skipFile=c())
 View(learning_data_frame)
 
 #show_stretched_vs_original(64)
@@ -160,10 +163,42 @@ View(learning_data_frame)
 #learning data frame rows is correct
 #plot(1:3995,learning_data_frame[5,][6:4000])
 
-pca<-prcomp(learning_data_frame[2:172,200:3800])
-
-library(ggfortify)
+pca<-prcomp(learning_data_frame[200:3800])
 
 autoplot(pca,loadings=F,data=learning_data_frame[2:172,],colour="Gewebe",label=T,loadings.label = F)
 plot(pca)
 summary(pca)
+
+#svm
+library(caret)
+
+#missing data on whether tissue was canser or not
+heart_df <- read.csv("heart_tidy.csv", sep = ',', header = FALSE)
+heart_df
+set.seed(3033)
+intrain <- createDataPartition(y = heart_df$V14, p= 0.7, list = FALSE)
+training <- heart_df[intrain,]
+testing <- heart_df[-intrain,]
+
+#turn spezies gewebe laser into catigorical data
+training[["V14"]] = factor(training[["V14"]])
+testing[["V14"]] = factor(testing[["V14"]])
+
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+set.seed(3233)
+
+grid <- expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5))
+svm_Linear <- train(V14 ~., data = training, method = "svmLinear",
+                    trControl=trctrl,
+                    preProcess = c("center", "scale"),
+                    tuneGrid = grid,
+                    tuneLength = 10)
+svm_Linear         
+
+test_pred <- predict(svm_Linear, newdata = testing)
+test_pred
+
+confusionMatrix(test_pred, testing$V14)
+
+plot(svm_Linear)
+
