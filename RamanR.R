@@ -67,9 +67,10 @@ show_spectrum_groups<-function(Laser,Spezies,Gewebe){
 #data is x and y of measurement
 stretch_data<-function(data,desired_length=4000){
   stretched<-rep(0,desired_length)
+  maxx=max(data[,2])
   for(i in 1:length(data[,1])){
     x=floor(data[i,1])
-    y=data[i,2]
+    y=data[i,2]/maxx
     if(x>4000 | x<0){
       next
     }
@@ -87,7 +88,6 @@ stretch_data<-function(data,desired_length=4000){
     }
   }
   for(i in 1:4000){
-    
     if(stretched[i]==0){
       if(last_y_value==0){
         stretched[i]<-first_non_zero_value
@@ -107,7 +107,7 @@ stretch_data<-function(data,desired_length=4000){
 #shows the stretched data vs original
 show_stretched_vs_original<-function(xx){
   dat<-measurements[[xx]]$data
-  stretch<-data.frame("xdat"=1:4000,"ydat"=stretch_data(dat))
+  stretch<-data.frame("xdat"=1:4000,"ydat"=stretch_data(dat)*max(dat[,2]))
   p<-plot_ly(dat,x=~xdata,y=~ydata,name="original",mode="lines",type="scatter")%>%
     add_trace(x=stretch$xdat,y=stretch$ydat,
               mode="lines",type="scatter",name="stretched")
@@ -131,6 +131,7 @@ load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
       firstRow<-append(firstRow,m$file)
       firstRow<-append(firstRow,m$Spezies)
       firstRow<-append(firstRow,gewebe[m$Gewebe])
+      firstRow<-append(firstRow,m$Gewebe)
       firstRow<-append(firstRow,m$Laser)
       firstRow<-append(firstRow,m$Fall)
       addingStretchedDataToFirstRow<-stretch_data(data)
@@ -138,12 +139,12 @@ load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
         firstRow<-append(firstRow,addingStretchedDataToFirstRow[i])
       }
       learning_data_frame<-data.frame(firstRow)
-      names(learning_data_frame)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
+      names(learning_data_frame)<-c("file","Spezies","Gewebe","GewebeNum","Laser","Fall",1:4000)
     }
     #adding every row but the first
     else{
-      newRow=data.frame(c(m$file,m$Spezies,gewebe[m$Gewebe],m$Laser,m$Fall,stretch_data(data)))
-      names(newRow)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
+      newRow=data.frame(c(m$file,m$Spezies,gewebe[m$Gewebe],m$Gewebe,m$Laser,m$Fall,stretch_data(data)))
+      names(newRow)<-c("file","Spezies","Gewebe","GewebeNum","Laser","Fall",1:4000)
       learning_data_frame<-rbind(learning_data_frame,newRow)
     }
     print(paste("creating learning data frame, current size: ",nrow(learning_data_frame)))
@@ -156,17 +157,17 @@ View(learning_data_frame)
 
 #show_stretched_vs_original(64)
 
-#show_spectrum(10)
+#show_spectrum(1)
 
 #show_spectrum_groups(Laser=1,Spezies=1,Gewebe=2)
 
 #learning data frame rows is correct
-#plot(1:3995,learning_data_frame[5,][6:4000])
+#plot(1:4000,learning_data_frame[1,][7:4006])
 
 pca<-prcomp(learning_data_frame[200:3800])
+#,xlim=c(-.2,.1),ylim=c(-.2,.1)
+autoplot(pca,loadings=F,data=learning_data_frame[1:172,],colour="Gewebe",label=T,loadings.label = F)
 
-autoplot(pca,loadings=F,data=learning_data_frame[2:172,],colour="Gewebe",label=T,loadings.label = F)
-plot(pca)
 summary(pca)
 
 #svm
@@ -177,18 +178,32 @@ heart_df <- read.csv("heart_tidy.csv", sep = ',', header = FALSE)
 heart_df
 set.seed(3033)
 intrain <- createDataPartition(y = heart_df$V14, p= 0.7, list = FALSE)
+intrain<- createDataPartition(y = learning_data_frame$GewebeNum, p= 0.7, list = FALSE)
+
 training <- heart_df[intrain,]
+training<- learning_data_frame[intrain,][!names(learning_data_frame)%in% c("Gewebe","file","Fall")]
+
 testing <- heart_df[-intrain,]
+testing<- learning_data_frame[-intrain,][!names(learning_data_frame)%in% c("Gewebe","file","Fall")]
+
 
 #turn spezies gewebe laser into catigorical data
 training[["V14"]] = factor(training[["V14"]])
 testing[["V14"]] = factor(testing[["V14"]])
 
+training[["Spezies"]] = factor(training[["Spezies"]])
+training[["GewebeNum"]] = factor(training[["GewebeNum"]])
+training[["Laser"]] = factor(training[["Laser"]])
+
+testing[["Spezies"]] = factor(testing[["Spezies"]])
+testing[["GewebeNum"]] = factor(testing[["GewebeNum"]])
+testing[["Laser"]] = factor(testing[["Laser"]])
+
 trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
 set.seed(3233)
 
 grid <- expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5))
-svm_Linear <- train(V14 ~., data = training, method = "svmLinear",
+svm_Linear <- train(GewebeNum ~., data = training, method = "svmLinear",
                     trControl=trctrl,
                     preProcess = c("center", "scale"),
                     tuneGrid = grid,
@@ -202,3 +217,10 @@ confusionMatrix(test_pred, testing$V14)
 
 plot(svm_Linear)
 
+ma <- function(x, n = 10){
+  result<-0
+  for(i in 1:length(x)-n){
+    result[i]<-median(x[i+n])
+  }
+  return(result)
+}
