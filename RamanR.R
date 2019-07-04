@@ -35,7 +35,7 @@ for (file in list.files()) {
                                 "dateiname"=Legende[index,6] 
   )
 }
-#given x, will plot the spectrum of the measurements,
+#given x, will plot the spectrum of the measurements
 show_spectrum<-function(x){
   data<-measurements[[x]]$data
   p<-plot_ly(data,x=~xdata,y=~ydata,
@@ -45,6 +45,7 @@ show_spectrum<-function(x){
 }
 
 #show all spectrums of a certain group
+#uses masurements for plotting
 show_spectrum_groups<-function(Laser,Spezies,Gewebe){
   allSpectra<-list()
   count<-1
@@ -105,6 +106,8 @@ stretch_data<-function(data,desired_length=4000){
 }
 
 #shows the stretched data vs original
+#input is integer
+#measurements is used for plotting
 show_stretched_vs_original<-function(xx){
   dat<-measurements[[xx]]$data
   stretch<-data.frame("xdat"=1:4000,"ydat"=stretch_data(dat)*max(dat[,2]))
@@ -162,11 +165,9 @@ View(learning_data_frame)
 
 #show_spectrum_groups(Laser=1,Spezies=1,Gewebe=2)
 
-#learning data frame rows is correct
 #plot(1:4000,learning_data_frame[1,][7:4006])
 
 pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["Laser"]==1,])
-#,xlim=c(-.2,.1),ylim=c(-.2,.1)
 autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["Laser"]==1,],colour="Gewebe",
          label=T,
          loadings.label = F,#eigen_vectors
@@ -174,7 +175,6 @@ autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["La
          )
 
 pca<-prcomp(learning_data_frame[200:3800])
-#,xlim=c(-.2,.1),ylim=c(-.2,.1)
 autoplot(pca,loadings=F,data=learning_data_frame[1:172,],colour="GewebeLaser",
          label=T,
          loadings.label = F,#eigen_vectors
@@ -188,16 +188,16 @@ library(caret)
 
 #missing data on whether tissue was canser or not
 heart_df <- read.csv("heart_tidy.csv", sep = ',', header = FALSE)
-heart_df
+View(heart_df)
 set.seed(3033)
 intrain <- createDataPartition(y = heart_df$V14, p= 0.7, list = FALSE)
 intrain<- createDataPartition(y = learning_data_frame$GewebeNum, p= 0.7, list = FALSE)
 
 training <- heart_df[intrain,]
-training<- learning_data_frame[intrain,][!names(learning_data_frame)%in% c("Gewebe","file","Fall")]
+training<- learning_data_frame[intrain,][!names(learning_data_frame)%in% c("Gewebe","file","Fall","GewebeLaser")]
 
 testing <- heart_df[-intrain,]
-testing<- learning_data_frame[-intrain,][!names(learning_data_frame)%in% c("Gewebe","file","Fall")]
+testing<- learning_data_frame[-intrain,][!names(learning_data_frame)%in% c("Gewebe","file","Fall","GewebeLaser")]
 
 
 #turn spezies gewebe laser into catigorical data
@@ -216,7 +216,8 @@ trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
 set.seed(3233)
 
 grid <- expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5))
-svm_Linear <- train(GewebeNum ~., data = training, method = "svmLinear",
+#V14 or GewebeNum
+svm_Linear <- train(V14 ~., data = training, method = "svmLinear",
                     trControl=trctrl,
                     preProcess = c("center", "scale"),
                     tuneGrid = grid,
@@ -237,3 +238,5 @@ ma <- function(x, n = 10){
   }
   return(result)
 }
+
+cbind(testing,test_pred)
