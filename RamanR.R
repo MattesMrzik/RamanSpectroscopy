@@ -115,7 +115,7 @@ show_stretched_vs_original<-function(xx){
 }
 
 #creates a dataframe with all relevant information
-load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
+unscaled_load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
   learning_data_frame<-data.frame()
   gewebe<-list("Muskel","Sehne","Haut","Gehirn","Niere","Meniskus","knorpel","Faszie","Nerv","Gefäß")
   for(i in 1:measurements_quantity){
@@ -131,19 +131,21 @@ load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
       firstRow<-append(firstRow,m$file)
       firstRow<-append(firstRow,m$Spezies)
       firstRow<-append(firstRow,gewebe[m$Gewebe])
+      firstRow<-append(firstRow,m$Gewebe)
       firstRow<-append(firstRow,m$Laser)
+      firstRow<-append(firstRow,paste(gewebe[m$Gewebe],as.character(m$Laser)))
       firstRow<-append(firstRow,m$Fall)
       addingStretchedDataToFirstRow<-stretch_data(data)
       for(i in 1:4000){
         firstRow<-append(firstRow,addingStretchedDataToFirstRow[i])
       }
       learning_data_frame<-data.frame(firstRow)
-      names(learning_data_frame)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
+      names(learning_data_frame)<-c("file","Spezies","Gewebe","GewebeNum","Laser","GewebeLaser","Fall",1:4000)
     }
     #adding every row but the first
     else{
-      newRow=data.frame(c(m$file,m$Spezies,gewebe[m$Gewebe],m$Laser,m$Fall,stretch_data(data)))
-      names(newRow)<-c("file","Spezies","Gewebe","Laser","Fall",1:4000)
+      newRow=data.frame(c(m$file,m$Spezies,gewebe[m$Gewebe],m$Gewebe,m$Laser,paste(gewebe[m$Gewebe],as.character(m$Laser)),m$Fall,stretch_data(data)))
+      names(newRow)<-c("file","Spezies","Gewebe","GewebeNum","Laser","GewebeLaser","Fall",1:4000)
       learning_data_frame<-rbind(learning_data_frame,newRow)
     }
     print(paste("creating learning data frame, current size: ",nrow(learning_data_frame)))
@@ -151,8 +153,9 @@ load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
   return(learning_data_frame)
 }
 
-learning_data_frame<-load_learning_data_frame(skipSpezies=c(2),skipGewebe = c(4,5,7,8,10),skipFile=c())
-View(learning_data_frame)
+
+unscaled_load_learning_data_frame<-unscaled_load_learning_data_frame(skipSpezies=c(2),skipGewebe = c(4,5,7,8,10),skipFile=c())
+View(unscaled_load_learning_data_frame)
 
 #show_stretched_vs_original(64)
 
@@ -163,9 +166,9 @@ View(learning_data_frame)
 #learning data frame rows is correct
 #plot(1:3995,learning_data_frame[5,][6:4000])
 
-pca<-prcomp(learning_data_frame[200:3800])
+pca<-prcomp(unscaled_load_learning_data_frame[200:3800])
 
-autoplot(pca,loadings=F,data=learning_data_frame[2:172,],colour="Gewebe",label=T,loadings.label = F)
+autoplot(pca,loadings=F,data=unscaled_load_learning_data_frame[1:172,],colour="GewebeLaser",label=T,loadings.label = F, frame = F, frame.type = 'norm')
 plot(pca)
 summary(pca)
 
