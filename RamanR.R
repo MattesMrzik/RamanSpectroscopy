@@ -133,18 +133,19 @@ load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
       firstRow<-append(firstRow,gewebe[m$Gewebe])
       firstRow<-append(firstRow,m$Gewebe)
       firstRow<-append(firstRow,m$Laser)
+      firstRow<-append(firstRow,paste(gewebe[m$Gewebe],as.character(m$Laser)))
       firstRow<-append(firstRow,m$Fall)
       addingStretchedDataToFirstRow<-stretch_data(data)
       for(i in 1:4000){
         firstRow<-append(firstRow,addingStretchedDataToFirstRow[i])
       }
       learning_data_frame<-data.frame(firstRow)
-      names(learning_data_frame)<-c("file","Spezies","Gewebe","GewebeNum","Laser","Fall",1:4000)
+      names(learning_data_frame)<-c("file","Spezies","Gewebe","GewebeNum","Laser","GewebeLaser","Fall",1:4000)
     }
     #adding every row but the first
     else{
-      newRow=data.frame(c(m$file,m$Spezies,gewebe[m$Gewebe],m$Gewebe,m$Laser,m$Fall,stretch_data(data)))
-      names(newRow)<-c("file","Spezies","Gewebe","GewebeNum","Laser","Fall",1:4000)
+      newRow=data.frame(c(m$file,m$Spezies,gewebe[m$Gewebe],m$Gewebe,m$Laser,paste(gewebe[m$Gewebe],as.character(m$Laser)),m$Fall,stretch_data(data)))
+      names(newRow)<-c("file","Spezies","Gewebe","GewebeNum","Laser","GewebeLaser","Fall",1:4000)
       learning_data_frame<-rbind(learning_data_frame,newRow)
     }
     print(paste("creating learning data frame, current size: ",nrow(learning_data_frame)))
@@ -164,9 +165,21 @@ View(learning_data_frame)
 #learning data frame rows is correct
 #plot(1:4000,learning_data_frame[1,][7:4006])
 
+pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["Laser"]==1,])
+#,xlim=c(-.2,.1),ylim=c(-.2,.1)
+autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["Laser"]==1,],colour="Gewebe",
+         label=T,
+         loadings.label = F,#eigen_vectors
+         frame=T,frame.type = 'norm'
+         )
+
 pca<-prcomp(learning_data_frame[200:3800])
 #,xlim=c(-.2,.1),ylim=c(-.2,.1)
-autoplot(pca,loadings=F,data=learning_data_frame[1:172,],colour="Gewebe",label=T,loadings.label = F)
+autoplot(pca,loadings=F,data=learning_data_frame[1:172,],colour="GewebeLaser",
+         label=T,
+         loadings.label = F,#eigen_vectors
+         frame=T,frame.type = 'norm'
+)
 
 summary(pca)
 
