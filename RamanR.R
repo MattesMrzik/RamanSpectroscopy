@@ -167,8 +167,8 @@ View(learning_data_frame)
 
 #plot(1:4000,learning_data_frame[1,][7:4006])
 
-pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["Laser"]==1,])
-autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["Laser"]==1,],colour="Gewebe",
+pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["Laser"]==2,])
+autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["Laser"]==2,],colour="Gewebe",
          label=T,
          loadings.label = F,#eigen_vectors
          frame=T,frame.type = 'norm'
@@ -186,57 +186,44 @@ summary(pca)
 #svm
 library(caret)
 
-#missing data on whether tissue was canser or not
-heart_df <- read.csv("heart_tidy.csv", sep = ',', header = FALSE)
-View(heart_df)
 set.seed(3033)
-intrain <- createDataPartition(y = heart_df$V14, p= 0.7, list = FALSE)
 intrain<- createDataPartition(y = learning_data_frame$GewebeNum, p= 0.7, list = FALSE)
-
-training <- heart_df[intrain,]
-training<- learning_data_frame[intrain,][!names(learning_data_frame)%in% c("Gewebe","file","Fall","GewebeLaser")]
-
-testing <- heart_df[-intrain,]
-testing<- learning_data_frame[-intrain,][!names(learning_data_frame)%in% c("Gewebe","file","Fall","GewebeLaser")]
+training<- learning_data_frame[intrain,][!names(learning_data_frame)%in% c("Spezies","Gewebe","file","Fall","GewebeLaser")]
+testing<- learning_data_frame[-intrain,][!names(learning_data_frame)%in% c("Spezies","Gewebe","file","Fall","GewebeLaser")]
 
 
 #turn spezies gewebe laser into catigorical data
-training[["V14"]] = factor(training[["V14"]])
-testing[["V14"]] = factor(testing[["V14"]])
-
-training[["Spezies"]] = factor(training[["Spezies"]])
 training[["GewebeNum"]] = factor(training[["GewebeNum"]])
 training[["Laser"]] = factor(training[["Laser"]])
 
-testing[["Spezies"]] = factor(testing[["Spezies"]])
 testing[["GewebeNum"]] = factor(testing[["GewebeNum"]])
 testing[["Laser"]] = factor(testing[["Laser"]])
 
-trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
-set.seed(3233)
 
-grid <- expand.grid(C = c(0,0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2,5))
-#V14 or GewebeNum
-svm_Linear <- train(V14 ~., data = training, method = "svmLinear",
+library(doParallel)
+cl <- makeCluster(4)
+registerDoParallel(cl)
+#method = "repeatedcv"
+trctrl <- trainControl(method = "LOOCV", number = 10, repeats = 3)
+set.seed(3233)
+svm_Linear <- train(GewebeNum ~., data = training, method = "svmLinear",
                     trControl=trctrl,
                     preProcess = c("center", "scale"),
-                    tuneGrid = grid,
-                    tuneLength = 10)
+                    tuneGrid=
+                    tuneLength = 7)
+stopCluster(cl)
 svm_Linear         
+
+testOne=learning_data_frame[98,][!names(learning_data_frame)%in% c("Spezies","Gewebe","file","Fall","GewebeLaser")]
+testOne[["GewebeNum"]]=factor(testOne[["GewebeNum"]])
+testOne[["Laser"]]=factor(testOne[["Laser"]])
+test_pred <- predict(svm_Linear, newdata = testOne)
 
 test_pred <- predict(svm_Linear, newdata = testing)
 test_pred
 
-confusionMatrix(test_pred, testing$V14)
+confusionMatrix(test_pred, testing$GewebeNum)
 
 plot(svm_Linear)
 
-ma <- function(x, n = 10){
-  result<-0
-  for(i in 1:length(x)-n){
-    result[i]<-median(x[i+n])
-  }
-  return(result)
-}
-
-cbind(testing,test_pred)
+cbind(testing$GewebeNum,test_pred)
