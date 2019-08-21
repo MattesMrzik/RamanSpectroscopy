@@ -29,12 +29,12 @@ for (file in list.files()) {
   data<-data.frame(xdata,ydata)
   
   measurements[[index]] <- list("data"=data,
-                                "file"=index,
-                                "Fall"=Legende[index,2],
-                                "Laser"=Legende[index,3],
-                                "Spezies"=Legende[index,4],
-                                "Gewebe"=Legende[index,5],
-                                "dateiname"=Legende[index,6] 
+                                "index"=index,
+                                "case"=Legende[index,2],
+                                "laser"=Legende[index,3],
+                                "species"=Legende[index,4],
+                                "tissue"=Legende[index,5],
+                                "note"=Legende[index,6] 
   )
 }
 #given x, will plot the spectrum of the measurements
@@ -42,19 +42,19 @@ show_spectrum<-function(x){
   data<-measurements[[x]]$data
   p<-plot_ly(data,x=~xdata,y=~ydata,
              mode="lines",type="scatter")%>%
-    layout(title = paste("File:",measurements[[x]]$file,", Spezies:",measurements[[x]]$Spezies,", Gewebe:",measurements[[x]]$Gewebe,", Laser:",measurements[[x]]$Laser))
+    layout(title = paste("File:",measurements[[x]]$index,", species:",measurements[[x]]$species,",tissue:",measurements[[x]]$tissue,", laser:",measurements[[x]]$laser))
   return(p)
 }
 
 #show all spectrums of a certain group
 #uses masurements for plotting
-show_spectrum_groups<-function(Laser,Spezies,Gewebe){
+show_spectrum_groups<-function(laser,species,tissue){
   allSpectra<-list()
   count<-1
   for(m in measurements){
-    if(m$Laser==Laser & m$Gewebe==Gewebe & m$Spezies==Spezies){
+    if(m$laser==laser & m$tissue==tissue & m$species==species){
       df=m$data
-      p<-plot_ly(df,x=~xdata,y=~ydata)%>%add_lines(name=m$file)
+      p<-plot_ly(df,x=~xdata,y=~ydata)%>%add_lines(name=m$index)
       allSpectra[[count]]<-p
       count<-count+1
     }
@@ -120,37 +120,37 @@ show_stretched_vs_original<-function(xx){
 }
 
 #creates a dataframe with all relevant information
-load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
+load_learning_data_frame<-function(skip_tissue,skip_species,skip_index){
   learning_data_frame<-data.frame()
-  gewebe<-list("Muskel","Sehne","Haut","Gehirn","Niere","Meniskus","knorpel","Faszie","Nerv","Gefäß")
+  tissue_names<-list("Muskel","Sehne","Haut","Gehirn","Niere","Meniskus","knorpel","Faszie","Nerv","Gefäß")
   for(i in 1:measurements_quantity){
     m<-measurements[[i]]
     data<-m$data
     #skipping files
-    if(measurements[[i]]$Spezies %in% skipSpezies | measurements[[i]]$Gewebe %in% skipGewebe | measurements[[i]]$file %in% skipFile){
+    if(measurements[[i]]$species %in% skip_species | measurements[[i]]$tissue %in% skip_tissue | measurements[[i]]$index %in% skip_index){
       next
     }
     #adding first row to dataframe
     firstRow<-list()
     if(length(learning_data_frame)==0){
-      firstRow<-append(firstRow,m$file)
-      firstRow<-append(firstRow,m$Spezies)
-      firstRow<-append(firstRow,gewebe[m$Gewebe])
-      firstRow<-append(firstRow,m$Gewebe)
-      firstRow<-append(firstRow,m$Laser)
-      firstRow<-append(firstRow,paste(gewebe[m$Gewebe],as.character(m$Laser)))
-      firstRow<-append(firstRow,m$Fall)
+      firstRow<-append(firstRow,m$index)
+      firstRow<-append(firstRow,m$species)
+      firstRow<-append(firstRow,tissue_names[m$tissue])
+      firstRow<-append(firstRow,m$tissue)
+      firstRow<-append(firstRow,m$laser)
+      firstRow<-append(firstRow,paste(tissue_names[m$tissue],as.character(m$laser)))
+      firstRow<-append(firstRow,m$case)
       addingStretchedDataToFirstRow<-stretch_data(data)
       for(i in 1:4000){
         firstRow<-append(firstRow,addingStretchedDataToFirstRow[i])
       }
       learning_data_frame<-data.frame(firstRow)
-      names(learning_data_frame)<-c("file","Spezies","Gewebe","GewebeNum","Laser","GewebeLaser","Fall",1:4000)
+      names(learning_data_frame)<-c("index","species","tissue","tissue_num","laser","tissue_laser","case",1:4000)
     }
     #adding every row but the first
     else{
-      newRow=data.frame(c(m$file,m$Spezies,gewebe[m$Gewebe],m$Gewebe,m$Laser,paste(gewebe[m$Gewebe],as.character(m$Laser)),m$Fall,stretch_data(data)))
-      names(newRow)<-c("file","Spezies","Gewebe","GewebeNum","Laser","GewebeLaser","Fall",1:4000)
+      newRow=data.frame(c(m$index,m$species,tissue_names[m$tissue],m$tissue,m$laser,paste(tissue_names[m$tissue],as.character(m$laser)),m$case,stretch_data(data)))
+      names(newRow)<-c("index","species","tissue","tissue_num","laser","tissue_laser","case",1:4000)
       learning_data_frame<-rbind(learning_data_frame,newRow)
     }
     print(paste("creating learning data frame, current size: ",nrow(learning_data_frame)))
@@ -158,26 +158,26 @@ load_learning_data_frame<-function(skipGewebe,skipSpezies,skipFile){
   return(learning_data_frame)
 }
 
-learning_data_frame<-load_learning_data_frame(skipSpezies=c(2),skipGewebe = c(4,5,7,8,10),skipFile=c())
+learning_data_frame<-load_learning_data_frame(skip_species=c(2),skip_tissue = c(4,5,7,8,10),skip_index=c())
 View(learning_data_frame)
 
 #show_stretched_vs_original(64)
 
 #show_spectrum(1)
 
-#show_spectrum_groups(Laser=1,Spezies=1,Gewebe=2)
+#show_spectrum_groups(laser=1,species=1,tissue=2)
 
 #plot(1:4000,learning_data_frame[1,][7:4006])
 
-pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["Laser"]==1,])
-autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["Laser"]==1,],colour="Gewebe",
+pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["laser"]==1,])
+autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["laser"]==1,],colour="tissue",
          label=T,
          loadings.label = F,#eigen_vectors
          frame=T,frame.type = 'norm'
          )
 
 pca<-prcomp(learning_data_frame[200:3800])
-autoplot(pca,loadings=F,data=learning_data_frame[1:172,],colour="GewebeLaser",
+autoplot(pca,loadings=F,data=learning_data_frame[1:172,],colour="tissue_laser",
          label=T,
          loadings.label = F,#eigen_vectors
          frame=T,frame.type = 'norm'
@@ -189,17 +189,17 @@ summary(pca)
 library(caret)
 
 #set.seed(3033)
-intrain<- createDataPartition(y = learning_data_frame$GewebeNum, p= 0.7, list = FALSE)
-training<- learning_data_frame[intrain,][!names(learning_data_frame)%in% c("Spezies","Gewebe","file","Fall","GewebeLaser")]
-testing<- learning_data_frame[-intrain,][!names(learning_data_frame)%in% c("Spezies","Gewebe","file","Fall","GewebeLaser")]
+intrain<- createDataPartition(y = learning_data_frame$tissue_num, p= 0.7, list = FALSE)
+training<- learning_data_frame[intrain,][!names(learning_data_frame)%in% c("species","tissue","index","case","tissue_laser")]
+testing<- learning_data_frame[-intrain,][!names(learning_data_frame)%in% c("species","tissue","index","case","tissue_laser")]
 
 
 #turn spezies gewebe and laser into catigorical data
-training[["GewebeNum"]] = factor(training[["GewebeNum"]])
-training[["Laser"]] = factor(training[["Laser"]])
+training[["tissue_num"]] = factor(training[["tissue_num"]])
+training[["laser"]] = factor(training[["laser"]])
 
-testing[["GewebeNum"]] = factor(testing[["GewebeNum"]])
-testing[["Laser"]] = factor(testing[["Laser"]])
+testing[["tissue_num"]] = factor(testing[["tissue_num"]])
+testing[["laser"]] = factor(testing[["laser"]])
 
 
 library(doParallel)
@@ -208,23 +208,23 @@ registerDoParallel(cl)
 #method = "repeatedcv"
 trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
 #set.seed(3233)
-svm_Linear <- train(GewebeNum ~., data = training, method = "svmLinear",
+svm_Linear <- train(tissue_num ~., data = training, method = "svmLinear",
                     trControl=trctrl,
                     preProcess = c("center", "scale"),
                     tuneLength = 7)
-stopCluster(cl)
+stopCluster(cl)#maybe tuning paramter not constant at c=1
 svm_Linear         
 
 #predict one specific measument
-testOne=learning_data_frame[98,][!names(learning_data_frame)%in% c("Spezies","Gewebe","file","Fall","GewebeLaser")]
-testOne[["GewebeNum"]]=factor(testOne[["GewebeNum"]])
-testOne[["Laser"]]=factor(testOne[["Laser"]])
+testOne=learning_data_frame[98,][!names(learning_data_frame)%in% c("species","tissue","index","case","tissue_num")]
+testOne[["tissue_num"]]=factor(testOne[["tissue_num"]])
+testOne[["laser"]]=factor(testOne[["laser"]])
 test_pred <- predict(svm_Linear, newdata = testOne)
 
 #predict the testing group
 test_pred <- predict(svm_Linear, newdata = testing)
-cbind(testing$GewebeNum,test_pred)
+cbind(testing$tissue_num,test_pred)
 
-confusionMatrix(test_pred, testing$GewebeNum)
+confusionMatrix(test_pred, testing$tissue_num)
 
 
