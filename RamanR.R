@@ -11,16 +11,18 @@ Legende <- read.delim("Legende_neu.txt", sep = c("\t", "\n"))
 measurements_quantity<-202
 measurements <- list(rep(0, measurements_quantity))
 for (file in list.files()) {
+  #only read the files which begin with numeric value
   if (suppressWarnings(is.na(as.numeric(substring(file, 1, 1))))) {
     next
   }
   fileData <- read.table(file, sep = "\t", header = F)
+  #index of file
   index <- as.numeric(substring(file, 1, regexpr(" ", file)[1] - 1))
   
+  #if 3 collumns in file, only save the last 2 collumns 
   if(fileData[1,1]==fileData[2,1]){
     fileData<-fileData[,2:3]
     fileData<-fileData[1:length(fileData[,1])/2,]
-    #print(head(fileData))
   }
   xdata<-fileData[,1]
   ydata<-fileData[,2]
@@ -65,6 +67,7 @@ show_spectrum_groups<-function(Laser,Spezies,Gewebe){
 }
 
 #stretching data, so that is contains 4000 points
+#scaling specturm to take values in [0,1], i.e. dividing each point by max value of spectrum
 #data is x and y of measurement
 stretch_data<-function(data,desired_length=4000){
   stretched<-rep(0,desired_length)
@@ -79,7 +82,7 @@ stretch_data<-function(data,desired_length=4000){
       stretched[x]<-y
     }
   }
-  #fill gaps in y data
+  #fill gaps in y data i.e. set value of 0 value points to neighbouring value
   last_y_value<-0
   first_non_zero_value<-0
   for (i in 1:4000){
@@ -101,12 +104,11 @@ stretch_data<-function(data,desired_length=4000){
       last_y_value=stretched[i]
     }
   }
-  #plot(1:4000,stretched)
   return(stretched)
 }
 
 #shows the stretched data vs original
-#input is integer
+#input is integer (file index)
 #measurements is used for plotting
 show_stretched_vs_original<-function(xx){
   dat<-measurements[[xx]]$data
@@ -167,8 +169,8 @@ View(learning_data_frame)
 
 #plot(1:4000,learning_data_frame[1,][7:4006])
 
-pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["Laser"]==2,])
-autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["Laser"]==2,],colour="Gewebe",
+pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["Laser"]==1,])
+autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["Laser"]==1,],colour="Gewebe",
          label=T,
          loadings.label = F,#eigen_vectors
          frame=T,frame.type = 'norm'
@@ -186,13 +188,13 @@ summary(pca)
 #svm
 library(caret)
 
-set.seed(3033)
+#set.seed(3033)
 intrain<- createDataPartition(y = learning_data_frame$GewebeNum, p= 0.7, list = FALSE)
 training<- learning_data_frame[intrain,][!names(learning_data_frame)%in% c("Spezies","Gewebe","file","Fall","GewebeLaser")]
 testing<- learning_data_frame[-intrain,][!names(learning_data_frame)%in% c("Spezies","Gewebe","file","Fall","GewebeLaser")]
 
 
-#turn spezies gewebe laser into catigorical data
+#turn spezies gewebe and laser into catigorical data
 training[["GewebeNum"]] = factor(training[["GewebeNum"]])
 training[["Laser"]] = factor(training[["Laser"]])
 
@@ -204,26 +206,25 @@ library(doParallel)
 cl <- makeCluster(4)
 registerDoParallel(cl)
 #method = "repeatedcv"
-trctrl <- trainControl(method = "LOOCV", number = 10, repeats = 3)
-set.seed(3233)
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+#set.seed(3233)
 svm_Linear <- train(GewebeNum ~., data = training, method = "svmLinear",
                     trControl=trctrl,
                     preProcess = c("center", "scale"),
-                    tuneGrid=
                     tuneLength = 7)
 stopCluster(cl)
 svm_Linear         
 
+#predict one specific measument
 testOne=learning_data_frame[98,][!names(learning_data_frame)%in% c("Spezies","Gewebe","file","Fall","GewebeLaser")]
 testOne[["GewebeNum"]]=factor(testOne[["GewebeNum"]])
 testOne[["Laser"]]=factor(testOne[["Laser"]])
 test_pred <- predict(svm_Linear, newdata = testOne)
 
+#predict the testing group
 test_pred <- predict(svm_Linear, newdata = testing)
-test_pred
+cbind(testing$GewebeNum,test_pred)
 
 confusionMatrix(test_pred, testing$GewebeNum)
 
-plot(svm_Linear)
 
-cbind(testing$GewebeNum,test_pred)
