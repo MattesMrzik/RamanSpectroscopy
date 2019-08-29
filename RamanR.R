@@ -1,14 +1,40 @@
+#classification of spectral Raman data
+
+# Author: Mattes Mrzik
+# E-Mail: mattes@mrzik.de
+# Last modified on: 29.08.19
+
+###################################################################
+library(plotly) #for plotting
+library(ggfortify) #for principal component analysis
+library(caret) #classification library
+library(doParallel) #to train on multible cores
+###################################################################
+
+###################################################################
+#set working directory
+
+#should contain spectral data
+#each measurement in a separate file, named beginning with numerical value -> index
+#containing 2 columns, the first containg the x values and the second the y value
+#if file contains 3 columns, then the x and y data should be in the second and third column
+
+#should contain "Legend" tsv file
+#should have a header
+#should contain file index (numerical), case (numerical), laser = 1 or 2, species (numerical), tissue(numerical), additional info, in that order
 setwd(
-  "C:\\Users\\mBrain\\luckyCloud\\Seafile\\Meine_Bibliothek\\Uni\\Studentische_Hilfskraft_KI_Medizin\\Raman"
+  #e.g: "C:\\Users\\mBrain\\luckyCloud\\Seafile\\Meine_Bibliothek\\Uni\\Studentische_Hilfskraft_KI_Medizin\\Raman"
 )
-library(plotly)
-library(ggfortify)
+###################################################################
 
-Legende <- read.delim("Legende_neu.txt", sep = c("\t", "\n"))
-
-
+###################################################################
 #reading data
+#how many measuments are availible
 measurements_quantity<-202
+name_of_legend_file<-"Legende_neu.txt"
+
+legend <- read.delim(name_of_legend_file, sep = c("\t", "\n"))
+
 measurements <- list(rep(0, measurements_quantity))
 for (file in list.files()) {
   #only read the files which begin with numeric value
@@ -19,8 +45,9 @@ for (file in list.files()) {
   #index of file
   index <- as.numeric(substring(file, 1, regexpr(" ", file)[1] - 1))
   
-  #if 3 collumns in file, only save the last 2 collumns 
-  if(fileData[1,1]==fileData[2,1]){
+  #if 3 collumns in file, only save the last 2 collumns  and only half the data points in the file, 
+  #bc in that case the file contained 2 spectra
+  if(length(fileData[1,])==3){
     fileData<-fileData[,2:3]
     fileData<-fileData[1:length(fileData[,1])/2,]
   }
@@ -30,14 +57,17 @@ for (file in list.files()) {
   
   measurements[[index]] <- list("data"=data,
                                 "index"=index,
-                                "case"=Legende[index,2],
-                                "laser"=Legende[index,3],
-                                "species"=Legende[index,4],
-                                "tissue"=Legende[index,5],
-                                "note"=Legende[index,6] 
+                                "case"=legend[index,2],
+                                "laser"=legend[index,3],
+                                "species"=legend[index,4],
+                                "tissue"=legend[index,5],
+                                "note"=legend[index,6] 
   )
 }
-#given x, will plot the spectrum of the measurements
+###################################################################
+
+###################################################################
+#given index, will plot the spectrum of the measurement
 show_spectrum<-function(x){
   data<-measurements[[x]]$data
   p<-plot_ly(data,x=~xdata,y=~ydata,
@@ -45,9 +75,12 @@ show_spectrum<-function(x){
     layout(title = paste("File:",measurements[[x]]$index,", species:",measurements[[x]]$species,",tissue:",measurements[[x]]$tissue,", laser:",measurements[[x]]$laser))
   return(p)
 }
+#show_spectrum(1)
+###################################################################
 
+###################################################################
 #show all spectrums of a certain group
-#uses masurements for plotting
+#laser, species, and tissue should be integers
 show_spectrum_groups<-function(laser,species,tissue){
   allSpectra<-list()
   count<-1
@@ -65,8 +98,11 @@ show_spectrum_groups<-function(laser,species,tissue){
   }
   subplot(allSpectra,nrows = rows)
 }
+#show_spectrum_groups(laser=1,species=1,tissue=2)
+###################################################################
 
-#stretching data, so that is contains 4000 points
+###################################################################
+#stretching data, so that is contains 4000 points, nessesary for training model
 #scaling specturm to take values in [0,1], i.e. dividing each point by max value of spectrum
 #data is x and y of measurement
 stretch_data<-function(data,desired_length=4000){
@@ -82,7 +118,7 @@ stretch_data<-function(data,desired_length=4000){
       stretched[x]<-y
     }
   }
-  #fill gaps in y data i.e. set value of 0 value points to neighbouring value
+  #fill gaps in y data i.e. set value of 0 value points to neighbouring non zero value
   last_y_value<-0
   first_non_zero_value<-0
   for (i in 1:4000){
@@ -106,10 +142,11 @@ stretch_data<-function(data,desired_length=4000){
   }
   return(stretched)
 }
+###################################################################
 
+###################################################################
 #shows the stretched data vs original
-#input is integer (file index)
-#measurements is used for plotting
+#input xx is integer (file index)
 show_stretched_vs_original<-function(xx){
   dat<-measurements[[xx]]$data
   stretch<-data.frame("xdat"=1:4000,"ydat"=stretch_data(dat)*max(dat[,2]))
@@ -118,16 +155,22 @@ show_stretched_vs_original<-function(xx){
               mode="lines",type="scatter",name="stretched")
   return(p)
 }
+#show_stretched_vs_original(1)
+###################################################################
 
+###################################################################
 #creates a dataframe with all relevant information
-load_learning_data_frame<-function(skip_tissue,skip_species,skip_index){
+#skip... should be integers, these are then not included in learning data frame
+load_learning_data_frame<-function(skip_tissue,skip_species,skip_index,skip_laser){
   learning_data_frame<-data.frame()
+  #insert names for tissues 
+  #order should be corresponding to indexing of tissues in legend
   tissue_names<-list("Muskel","Sehne","Haut","Gehirn","Niere","Meniskus","knorpel","Faszie","Nerv","Gefäß")
   for(i in 1:measurements_quantity){
     m<-measurements[[i]]
     data<-m$data
-    #skipping files
-    if(measurements[[i]]$species %in% skip_species | measurements[[i]]$tissue %in% skip_tissue | measurements[[i]]$index %in% skip_index){
+    #skipping measurements
+    if(measurements[[i]]$species %in% skip_species | measurements[[i]]$tissue %in% skip_tissue | measurements[[i]]$index %in% skip_index | measurements[[i]]$laser %in% skip_laser){
       next
     }
     #adding first row to dataframe
@@ -157,74 +200,77 @@ load_learning_data_frame<-function(skip_tissue,skip_species,skip_index){
   }
   return(learning_data_frame)
 }
+#skipping measurements of mice and certain tissues -> classification algo achieves better results
+learning_data_frame<-load_learning_data_frame(skip_species=c(2),skip_tissue = c(4,5,7,8,10),skip_index=c(),skip_laser = c())
+#View(learning_data_frame)
+###################################################################
 
-learning_data_frame<-load_learning_data_frame(skip_species=c(2),skip_tissue = c(4,5,7,8,10),skip_index=c())
-View(learning_data_frame)
-
-#show_stretched_vs_original(64)
-
-#show_spectrum(1)
-
-#show_spectrum_groups(laser=1,species=1,tissue=2)
-
-#plot(1:4000,learning_data_frame[1,][7:4006])
-
-pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["laser"]==1,])
-autoplot(pca,loadings=F,data=learning_data_frame[1:172,][learning_data_frame["laser"]==1,],colour="tissue",
-         label=T,
-         loadings.label = F,#eigen_vectors
-         frame=T,frame.type = 'norm'
-         )
-
+###################################################################
+#principal component analysis
+#labels of points are the rows in learning data frame
 pca<-prcomp(learning_data_frame[200:3800])
-autoplot(pca,loadings=F,data=learning_data_frame[1:172,],colour="tissue_laser",
+autoplot(pca,loadings=F,data=learning_data_frame,colour="tissue_laser",
          label=T,
          loadings.label = F,#eigen_vectors
          frame=T,frame.type = 'norm'
 )
+#principal component analysis of only the laser 1 (or 2)
+pca_laser<-1
 
-summary(pca)
+pca<-prcomp(learning_data_frame[200:3800][learning_data_frame["laser"]==pca_laser,])
+autoplot(pca,loadings=F,data=learning_data_frame[learning_data_frame["laser"]==pca_laser,],colour="tissue",
+         label=T,
+         loadings.label = F,#eigen_vectors
+         frame=T,frame.type = 't'
+)
 
-#svm
-library(caret)
+#for additional info
+#summary(pca)
+###################################################################
 
-#set.seed(3033)
+###################################################################
+#classification and prediction with support vector machine
+set.seed(3033)
+#split data in training and testing partition
 intrain<- createDataPartition(y = learning_data_frame$tissue_num, p= 0.7, list = FALSE)
 training<- learning_data_frame[intrain,][!names(learning_data_frame)%in% c("species","tissue","index","case","tissue_laser")]
 testing<- learning_data_frame[-intrain,][!names(learning_data_frame)%in% c("species","tissue","index","case","tissue_laser")]
 
-
-#turn spezies gewebe and laser into catigorical data
+#turn species, tissue and laser into categorical data
 training[["tissue_num"]] = factor(training[["tissue_num"]])
 training[["laser"]] = factor(training[["laser"]])
 
 testing[["tissue_num"]] = factor(testing[["tissue_num"]])
 testing[["laser"]] = factor(testing[["laser"]])
 
-
-library(doParallel)
-cl <- makeCluster(4)
+#insert interger -> how many cores should be used for training
+cl <- makeCluster(1)
 registerDoParallel(cl)
-#method = "repeatedcv"
+
 trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
-#set.seed(3233)
+set.seed(3233)
+
+#colnames(training) <- make.names(colnames(training))
 svm_Linear <- train(tissue_num ~., data = training, method = "svmLinear",
                     trControl=trctrl,
                     preProcess = c("center", "scale"),
                     tuneLength = 7)
-stopCluster(cl)#maybe tuning paramter not constant at c=1
+stopCluster(cl) 
 svm_Linear         
-
-#predict one specific measument
-testOne=learning_data_frame[98,][!names(learning_data_frame)%in% c("species","tissue","index","case","tissue_num")]
-testOne[["tissue_num"]]=factor(testOne[["tissue_num"]])
-testOne[["laser"]]=factor(testOne[["laser"]])
-test_pred <- predict(svm_Linear, newdata = testOne)
 
 #predict the testing group
 test_pred <- predict(svm_Linear, newdata = testing)
 cbind(testing$tissue_num,test_pred)
 
+#predict all measurements
+for( i in 1:172){
+  test_one_row<-i#integer corresponding to row of learning data frame
+  testOne=learning_data_frame[test_one_row,][!names(learning_data_frame)%in% c("species","tissue","index","case","tissue_laser")]
+  testOne[["tissue_num"]]=factor(testOne[["tissue_num"]])
+  testOne[["laser"]]=factor(testOne[["laser"]])
+  test_pred1 <- predict(svm_Linear, newdata = testOne)
+  cat("predict row",test_one_row,":",levels(test_pred1)[test_pred1],", true value:",as.numeric(as.character(unlist(testOne["tissue_num"]))),"\n")
+}
+
 confusionMatrix(test_pred, testing$tissue_num)
-
-
+###################################################################
