@@ -22,9 +22,14 @@ library(doParallel) #to train on multible cores
 #should contain "Legend" tsv file
 #should have a header
 #should contain file index (numerical), case (numerical), laser = 1 or 2, species (numerical), tissue(numerical), additional info, in that order
+# setwd(
+#   "C:\\Users\\mBrain\\luckyCloud\\Seafile\\Meine_Bibliothek\\Uni\\SHK_KI_Medizin\\Raman"
+#)
+
 setwd(
-  #e.g: "C:\\Users\\mBrain\\luckyCloud\\Seafile\\Meine_Bibliothek\\Uni\\Studentische_Hilfskraft_KI_Medizin\\Raman"
+   "/home/mattes/Seafile/Meine_Bibliothek/Uni/SHK_KI_Medizin/Raman"
 )
+
 ###################################################################
 
 ###################################################################
@@ -165,7 +170,7 @@ load_learning_data_frame<-function(skip_tissue,skip_species,skip_index,skip_lase
   learning_data_frame<-data.frame()
   #insert names for tissues 
   #order should be corresponding to indexing of tissues in legend
-  tissue_names<-list("Muskel","Sehne","Haut","Gehirn","Niere","Meniskus","knorpel","Faszie","Nerv","Gefäß")
+  tissue_names<-list("Muskel","Sehne","Haut","Gehirn","Niere","Meniskus","knorpel","Faszie","Nerv","Gef??")
   for(i in 1:measurements_quantity){
     m<-measurements[[i]]
     data<-m$data
@@ -244,7 +249,7 @@ testing[["tissue_num"]] = factor(testing[["tissue_num"]])
 testing[["laser"]] = factor(testing[["laser"]])
 
 #insert interger -> how many cores should be used for training
-cl <- makeCluster(1)
+cl <- makeCluster(4)
 registerDoParallel(cl)
 
 trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
@@ -261,6 +266,9 @@ svm_Linear
 #predict the testing group
 test_pred <- predict(svm_Linear, newdata = testing)
 cbind(testing$tissue_num,test_pred)
+print("accuracy of testing:")
+sum(rep(1,nrow(testing))[testing$tissue_num==test_pred])/nrow(testing)yes
+# 
 
 #predict all measurements
 for( i in 1:172){
