@@ -256,7 +256,7 @@ learning_data_frame <- load_learning_data_frame(skip_species=c(2),
 pca <- prcomp(learning_data_frame[200:3800])
 autoplot(pca, loadings = F, data = learning_data_frame, colour = "tissue_laser",
          label = T,
-         loadings.label = F,# Eigen vectors
+         loadings.label = F, # Eigen vectors
          frame = T,frame.type = 'norm'
 )
 # principal component analysis of only the laser 1 (or 2)
@@ -267,7 +267,7 @@ autoplot(pca, loadings = F,
          data = learning_data_frame[learning_data_frame["laser"] == pca_laser,],
          colour="tissue",
          label = T,
-         loadings.label = F,#Eigen vectors
+         loadings.label = F, # Eigen vectors
          frame = T,
          frame.type = 't'
 )
@@ -355,7 +355,7 @@ confusionMatrix(test_pred, testing$tissue_num)
 
 # Statistics by Class:
 
-#                     Class: 1 Class: 2 Class: 3 Class: 6 Class: 9
+#                      Class: 1 Class: 2 Class: 3 Class: 6 Class: 9
 # Sensitivity            0.8636   0.7857  1.00000   0.7778  1.00000
 # Specificity            0.9310   0.9730  0.93617   0.9762  0.97959
 # Pos Pred Value         0.9048   0.9167  0.57143   0.8750  0.66667
